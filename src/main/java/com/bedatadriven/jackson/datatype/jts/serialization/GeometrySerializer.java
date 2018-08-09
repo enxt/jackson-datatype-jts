@@ -44,30 +44,35 @@ public class GeometrySerializer extends JsonSerializer<Geometry> {
 			writeGeometryCollection(jgen, (GeometryCollection) value);
 
 		} else {
-			throw new JsonMappingException("Geometry type " 
+			throw new JsonMappingException(jgen, "Geometry type "
 					+ value.getClass().getName() + " cannot be serialized as GeoJSON." +
 					"Supported types are: " + Arrays.asList(
-						Point.class.getName(), 
-						LineString.class.getName(), 
-						Polygon.class.getName(), 
-						MultiPoint.class.getName(), 
-						MultiLineString.class.getName(),
-						MultiPolygon.class.getName(), 
-						GeometryCollection.class.getName()));
+					Point.class.getName(),
+					LineString.class.getName(),
+					Polygon.class.getName(),
+					MultiPoint.class.getName(),
+					MultiLineString.class.getName(),
+					MultiPolygon.class.getName(),
+					GeometryCollection.class.getName()));
 		}
 	}
 
-	private void writeGeometryCollection(JsonGenerator jgen, GeometryCollection value) throws
-			IOException {
+	// ***** GEOMETRIES AND COLLECTIONS WRITERS ***** //
+	private void writeGeometryCollection(JsonGenerator jgen, GeometryCollection value)
+			throws IOException {
 		jgen.writeStartObject();
 		jgen.writeStringField(TYPE, GEOMETRY_COLLECTION);
-		jgen.writeArrayFieldStart(GEOMETRIES);
 
+		jgen.writeArrayFieldStart(GEOMETRIES);
 		for (int i = 0; i != value.getNumGeometries(); ++i) {
 			writeGeometry(jgen, value.getGeometryN(i));
 		}
-
 		jgen.writeEndArray();
+
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
+
 		jgen.writeEndObject();
 	}
 
@@ -75,13 +80,16 @@ public class GeometrySerializer extends JsonSerializer<Geometry> {
 			throws IOException {
 		jgen.writeStartObject();
 		jgen.writeStringField(TYPE, MULTI_POINT);
-		jgen.writeArrayFieldStart(COORDINATES);
 
+		jgen.writeArrayFieldStart(COORDINATES);
 		for (int i = 0; i != value.getNumGeometries(); ++i) {
 			writePointCoords(jgen, (Point) value.getGeometryN(i));
 		}
-
 		jgen.writeEndArray();
+
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
 		jgen.writeEndObject();
 	}
 
@@ -89,13 +97,16 @@ public class GeometrySerializer extends JsonSerializer<Geometry> {
 			throws IOException {
 		jgen.writeStartObject();
 		jgen.writeStringField(TYPE, MULTI_LINE_STRING);
-		jgen.writeArrayFieldStart(COORDINATES);
 
+		jgen.writeArrayFieldStart(COORDINATES);
 		for (int i = 0; i != value.getNumGeometries(); ++i) {
 			writeLineStringCoords(jgen, (LineString) value.getGeometryN(i));
 		}
-
 		jgen.writeEndArray();
+
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
 		jgen.writeEndObject();
 	}
 
@@ -108,13 +119,16 @@ public class GeometrySerializer extends JsonSerializer<Geometry> {
 			throws IOException {
 		jgen.writeStartObject();
 		jgen.writeStringField(TYPE, MULTI_POLYGON);
+
 		jgen.writeArrayFieldStart(COORDINATES);
-
 		for (int i = 0; i != value.getNumGeometries(); ++i) {
-			writePolygonCoordinates(jgen, (Polygon) value.getGeometryN(i));
+			writePolygonCoords(jgen, (Polygon) value.getGeometryN(i));
 		}
-
 		jgen.writeEndArray();
+
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
 		jgen.writeEndObject();
 	}
 
@@ -123,12 +137,41 @@ public class GeometrySerializer extends JsonSerializer<Geometry> {
 		jgen.writeStartObject();
 		jgen.writeStringField(TYPE, POLYGON);
 		jgen.writeFieldName(COORDINATES);
-		writePolygonCoordinates(jgen, value);
-
+		writePolygonCoords(jgen, value);
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
 		jgen.writeEndObject();
 	}
 
-	private void writePolygonCoordinates(JsonGenerator jgen, Polygon value)
+	private void writeLineString(JsonGenerator jgen, LineString value)
+			throws IOException {
+		jgen.writeStartObject();
+		jgen.writeStringField(TYPE, LINE_STRING);
+		jgen.writeFieldName(COORDINATES);
+		writeLineStringCoords(jgen, value);
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
+		jgen.writeEndObject();
+	}
+
+	private void writePoint(JsonGenerator jgen, Point value)
+			throws IOException {
+		jgen.writeStartObject();
+		jgen.writeStringField(TYPE, POINT);
+		jgen.writeFieldName(COORDINATES);
+		writePointCoords(jgen, value);
+		if(value.getUserData() != null) {
+			jgen.writeObjectField(PROPERTIES, value.getUserData());
+		}
+		jgen.writeEndObject();
+	}
+
+
+
+	// ***** COORDINATES WRITERS ***** //
+	private void writePolygonCoords(JsonGenerator jgen, Polygon value)
 			throws IOException {
 		jgen.writeStartArray();
 		writeLineStringCoords(jgen, value.getExteriorRing());
@@ -136,49 +179,33 @@ public class GeometrySerializer extends JsonSerializer<Geometry> {
 		for (int i = 0; i < value.getNumInteriorRing(); ++i) {
 			writeLineStringCoords(jgen, value.getInteriorRingN(i));
 		}
+
 		jgen.writeEndArray();
 	}
 
 	private void writeLineStringCoords(JsonGenerator jgen, LineString ring)
 			throws IOException {
 		jgen.writeStartArray();
+
 		for (int i = 0; i != ring.getNumPoints(); ++i) {
 			Point p = ring.getPointN(i);
 			writePointCoords(jgen, p);
 		}
+
 		jgen.writeEndArray();
-	}
-
-	private void writeLineString(JsonGenerator jgen, LineString lineString)
-			throws IOException {
-		jgen.writeStartObject();
-		jgen.writeStringField(TYPE, LINE_STRING);
-		jgen.writeFieldName(COORDINATES);
-		writeLineStringCoords(jgen, lineString);
-		jgen.writeEndObject();
-	}
-
-	private void writePoint(JsonGenerator jgen, Point p)
-			throws IOException {
-		jgen.writeStartObject();
-		jgen.writeStringField(TYPE, POINT);
-		jgen.writeFieldName(COORDINATES);
-		writePointCoords(jgen, p);
-		jgen.writeEndObject();
 	}
 
 	private void writePointCoords(JsonGenerator jgen, Point p)
 			throws IOException {
 		jgen.writeStartArray();
-                
+
 		jgen.writeNumber(p.getCoordinate().x);
 		jgen.writeNumber(p.getCoordinate().y);
-                
-                if(!Double.isNaN(p.getCoordinate().z))
-                {
-                    jgen.writeNumber(p.getCoordinate().z);
-                }
+
+		if(!Double.isNaN(p.getCoordinate().z)) {
+			jgen.writeNumber(p.getCoordinate().z);
+		}
+
 		jgen.writeEndArray();
 	}
-
 }
